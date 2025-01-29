@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <rowOffsets file path> <columnIndices file path>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <rowOffsets file path> <columnIndices file path> 1 <number of threads>" << std::endl;
         return 1;
     }
 
