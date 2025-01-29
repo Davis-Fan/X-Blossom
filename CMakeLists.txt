@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.19)
-project(Blossom)
+project(X-Blossom)
 
 # Set default build type to Release if not specified
 if(NOT CMAKE_BUILD_TYPE)
