@@ -40,6 +40,13 @@ void x_blossom_maximum_matching(Graph& G, std::vector<int>& M, int num_of_thread
     std::vector<std::vector<int>> path_table_vector;
     int nodes = static_cast<int>(G.rowOffsets.size()) - 1;
     path_table_vector.resize(nodes);
+
+    if (static_cast<int>(M.size()) != nodes) {
+        M.assign(nodes, -1);  // resize and set all entries to -1
+    } else {
+        std::fill(M.begin(), M.end(), -1);
+    }
+
     for (auto& sub_vector : path_table_vector) {
         sub_vector.reserve(100);
         sub_vector.clear();
