@@ -107,19 +107,14 @@ The routine repeatedly finds augmenting paths in `G` and updates the matching un
 
   - `rowOffsets` (size `n + 1`)
 
-  - `columnIndices`
+  - `columnIndices` For each vertex `u`, its neighbors are stored in `columnIndices[rowOffsets[u] .. rowOffsets[u+1])`.
 
-    For each vertex `u`, its neighbors are stored in `columnIndices[rowOffsets[u] .. rowOffsets[u+1])`.
+- `std::vector<int>& M` Output matching vector (one `std::vector<int>`).
 
-- `std::vector<int>& M`
-   Output matching vector (one `std::vector<int>`).
-
-  - On entry, `M` may be empty or any size.
-  - On return, `M` is resized to the number of vertices in `G`.
+  - On entry, `M` has to be initialized to length num_of_nodes (e.g., `M.assign(num_of_nodes, -1);`)
   - `M[v]` contains the matched partner of `v`, or `-1` if `v` is unmatched.
 
-- `int num_of_threads`
-  Number of worker threads used by the parallel X-Blossom algorithm.
+- `int num_of_threads` Number of worker threads used by the parallel X-Blossom algorithm.
 
   - Must be ≥ 1.
   - The implementation parallelizes the search for augmenting paths and the matching updates across these threads.
