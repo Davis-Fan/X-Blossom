@@ -1,11 +1,6 @@
 #include "blossom.h"
 #include "graph.h"
 #include "stopwatch.h"
-std::chrono::microseconds duration_blossom;
-std::chrono::microseconds duration_augmenting_path;
-std::chrono::microseconds duration_expand;
-std::chrono::microseconds duration_prepare;
-std::chrono::microseconds duration_total(0);
 
 
 /// \brief Test if a maximum matching valid or not.
