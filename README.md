@@ -79,7 +79,7 @@ $ make
 $ ./Blossom ../Example_Dataset/Example_Realworld_Datasets/StackOverflow/stackOverflow_rowOffsets.txt ../Example_Dataset/Example_Realworld_Datasets/StackOverflow/stackOverflow_columnIndices.txt 8
 ```
 
-The program will execute the *same* test for 20 runs. The third parameter is 1, indicating it is a parallel program. The forth parameter is 8, which is the number of threads used in the parallel program.
+The third parameter is 8, which is the number of threads used in the parallel program.
 
 ---
 
