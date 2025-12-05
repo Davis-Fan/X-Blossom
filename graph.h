@@ -10,54 +10,86 @@
 #include <set>
 #include <unordered_set>
 
+/// \class Graph
+/// \brief Lightweight CSR-based representation of an undirected graph.
+///
+/// The Graph class stores an undirected graph in compressed sparse row (CSR)
+/// format and optionally provides an adjacency-list view for algorithms
+/// that need it. Vertices are assumed to be labeled `0, 1, ..., n-1`.
+
 class Graph {
 
 public:
 
-    std::unordered_map<int, std::list<int>> adjLists; // Adjacency lists with label as key
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    ////////////////////////////////////////////////
+    /// \brief Construct a graph from CSR arrays.
+    ///
+    /// \param csrRowOffsets
+    ///     Row offset array of length `n + 1`. For each vertex `u`,
+    ///     its neighbors are stored in `csrColumnIndices` in the range
+    ///     `[csrRowOffsets[u], csrRowOffsets[u+1])`.
+    ///
+    /// \param csrColumnIndices
+    ///     Column index array storing the adjacency lists of all vertices
+    ///     concatenated together.
+    ///
+    /// The constructor copies the input arrays and sets `num_of_nodes` to
+    /// `csrRowOffsets.size() - 1`.
 
-    std::vector<std::vector<int>> adjMatrix;
-    int num_of_nodes = 0;
-    Graph(int num_nodes){
-        num_of_nodes = num_nodes;
-//        adjMatrix.resize(num_of_nodes, std::vector<int>(num_of_nodes, -1));
+    std::vector<int> columnIndices;
+    std::vector<int> rowOffsets;
+
+    Graph(const std::vector<int>& csrRowOffsets, const std::vector<int>& csrColumnIndices) {
+        rowOffsets = csrRowOffsets;
+        columnIndices = csrColumnIndices;
+        num_of_nodes = static_cast<int>(rowOffsets.size()) - 1;
     }
 
-    Graph(){}
+    void printCSR(){
+        std::cout << "rowOffsets: ";
+        for (int val : rowOffsets) {
+            std::cout << val << " ";
+        }
+        std::cout << std::endl;
 
-    ////////////////////////////////////////////////
+        std::cout << "columnIndices: ";
+        for (int val : columnIndices) {
+            std::cout << val << " ";
+        }
+        std::cout << std::endl;
+    }
 
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// \brief Optional adjacency-list utilities (not required by X-Blossom API).
+
+    std::unordered_map<int, std::list<int>> adjLists; // Adjacency lists with label as key
+    std::vector<std::vector<int>> adjMatrix;
+    int num_of_nodes = 0;
+
+    Graph(int num_nodes){
+        num_of_nodes = num_nodes;
+    }
+    Graph()= default;
 
 
     void addNode(int label) {
-//        if (adjLists.find(label) != adjLists.end()) {
-//            return;
-//        }
         adjLists[label];
     }
 
-
     // Add an edge
     void addEdge(int srcLabel, int destLabel) {
-//        if (hasEdge(srcLabel,destLabel) || srcLabel == destLabel){
-//            return;
-//        }
         addNode(srcLabel);
         addNode(destLabel);
         adjLists[srcLabel].push_back(destLabel);
         adjLists[destLabel].push_back(srcLabel);
-
-
-        ////////////////////////////////
         if(!adjMatrix.empty()){
             adjMatrix[srcLabel][destLabel] = 1;
             adjMatrix[destLabel][srcLabel] = 1;
         }
-        ////////////////////////////////
     }
-
 
     // Remove an edge
     void removeEdge(int srcLabel, int destLabel) {
@@ -66,7 +98,6 @@ public:
             adjLists[destLabel].remove(srcLabel);
         }
     }
-
 
     // Remove a node
     void removeNode(int label) {
@@ -81,7 +112,6 @@ public:
         adjLists.erase(it);
     }
 
-
     // Check if an edge exists
     bool hasEdge(int srcLabel, int destLabel) {
         if (adjLists.find(srcLabel) != adjLists.end()) {
@@ -94,7 +124,6 @@ public:
         return false;
     }
 
-
     // Check how many nodes has no edge
     int countNodesWithNoEdges(){
         int count = 0;
@@ -105,7 +134,6 @@ public:
         }
         return count;
     }
-
 
     // Check the number of nodes the graph has
     int countNodes() {
@@ -171,7 +199,6 @@ public:
     // Contract one node to another
     void contractNodes(int nodeToContract, int intoNode) {
         if (adjLists.find(nodeToContract) == adjLists.end() || adjLists.find(intoNode) == adjLists.end()) {
-//            std::cout << "One or both nodes do not exist." << std::endl;
             return;
         }
 
@@ -223,106 +250,8 @@ public:
         file.close();
     }
 
-
-    //Generate a random graph
-    void generateRandomGraph(int n, double density) {
-        std::random_device rd;  // Obtain a random number from hardware
-        std::mt19937 gen(rd()); // Seed the generator
-        std::uniform_real_distribution<> dis(0.0, 1.0);
-
-//        for (int i = 0; i < n; i++) {
-//            addNode(i);
-//        }
-
-        for (int i = 0; i < n; ++i) {
-            for (int j = i + 1; j < n; ++j) {
-                if (dis(gen) < density) {
-                    addEdge(i, j);
-                }
-            }
-        }
-    }
-
-
-    // Visualization G and M
-    void exportToDot(const std::string& filename, const std::set<std::pair<int, int>>& M) {
-        std::ofstream file(filename);
-        if (!file.is_open()) {
-            std::cout << "Failed to open file for writing." << std::endl;
-            return;
-        }
-
-        file << "graph G {" << std::endl;
-        file << R"(graph [rankdir=LR, size="6,6", fontname="Arial", dpi=300];)" << std::endl;
-        file << R"(node [shape=circle, color="#009ade", fontname="Arial"];)" << std::endl;
-        file << R"(edge [color="#009ade"];)" << std::endl;
-
-        for (auto& pair : adjLists) {
-            for (int neighbor : pair.second) {
-                if (pair.first < neighbor) {
-                    if (M.find(std::make_pair(pair.first, neighbor)) != M.end()) {
-                        file << "  " << pair.first << " -- " << neighbor << " [color=red];" << std::endl;
-                    } else {
-                        file << "  " << pair.first << " -- " << neighbor << ";" << std::endl;
-                    }
-                }
-            }
-        }
-
-        for (auto& pair : adjLists) {
-            if (pair.second.empty()) {
-                file << "  " << pair.first << ";" << std::endl;
-            }
-        }
-
-        file << "}" << std::endl;
-    }
-
-    // Get a set of all nodes
-    std::set<int> getAllNodes(){
-        std::set<int> nodes;
-        for (auto& pair : adjLists) {
-            nodes.insert(pair.first); // Insert the node itself
-        }
-        return nodes;
-    }
-
-    /////////////////////////////////////////////////////////////
-
-    std::unordered_set<int> parGetAllNodes(){
-        std::unordered_set<int> nodes;
-        for (auto& pair : adjLists) {
-            nodes.insert(pair.first); // Insert the node itself
-        }
-        return nodes;
-    }
-
-    /////////////////////////////////////////////////////////////
-
-    std::unordered_set<int> seqGetAllNodes(){
-        std::unordered_set<int> nodes;
-        for (auto& pair : adjLists) {
-            nodes.insert(pair.first); // Insert the node itself
-        }
-        return nodes;
-    }
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // 11-5-2024
-
-    std::vector<int> columnIndices;
-    std::vector<int> rowOffsets;
-
-    Graph(const std::vector<int>& csrRowOffsets, const std::vector<int>& csrColumnIndices) {
-        rowOffsets = csrRowOffsets;
-        columnIndices = csrColumnIndices;
-        num_of_nodes = rowOffsets.size() - 1;
-    }
-
     void buildAdjListFromCSR() {
         adjLists.clear();
-
         for (int i = 0; i < num_of_nodes; ++i) {
             for (int j = rowOffsets[i]; j < rowOffsets[i + 1]; ++j) {
                 int neighbor = columnIndices[j];
@@ -331,13 +260,12 @@ public:
         }
     }
 
+
     void buildCSRFromAdjList() {
         rowOffsets.clear();
         columnIndices.clear();
         rowOffsets.push_back(0);
-
         int edgeCount = 0;
-
         if(num_of_nodes == 0){
             std::cout << "ERROR: size = 0" << std::endl;
         }
@@ -352,58 +280,6 @@ public:
             rowOffsets.push_back(edgeCount);
         }
     }
-
-    void printCSR(){
-        std::cout << "rowOffsets: ";
-        for (int val : rowOffsets) {
-            std::cout << val << " ";
-        }
-        std::cout << std::endl;
-
-        std::cout << "columnIndices: ";
-        for (int val : columnIndices) {
-            std::cout << val << " ";
-        }
-        std::cout << std::endl;
-    }
-
-
-    std::unordered_set<int> parGetAllNodesCSR(){
-        std::unordered_set<int> nodes;
-        if(num_of_nodes == 0){
-            std::cout << "ERROR: No Nodes" << std::endl;
-            return nodes;
-        }
-
-        for(int i=0; i<num_of_nodes; i++){
-            nodes.insert(i);
-        }
-        return nodes;
-    }
-
-
-
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-    /////////////////////////////////////////////////////////////
-
-    // Get a vector of all edges to a node
-    std::vector<std::pair<int, int>> getEdgesForNode(int i) {
-        std::vector<std::pair<int, int>> edges;
-        auto it = adjLists.find(i);
-        if (it != adjLists.end()) {
-            for (int neighbor : it->second) {
-                edges.emplace_back(i, neighbor);
-            }
-        }
-        return edges;
-    }
-
-
-
 };
 
 

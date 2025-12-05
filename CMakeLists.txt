@@ -10,11 +10,9 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
-add_executable(Blossom main.cpp blossom.h graph.h functions.cpp
-        functions_for_par_0.cpp
+add_executable(Blossom main.cpp blossom.h graph.h
         stopwatch.h
-        functions_for_par_1.cpp
-        functions_for_par_2.cpp
-        par_test.cpp
-        par_200.cpp
+        x_blossom_utils.cpp
+        test_x_blossom.cpp
+        x_blossom.cpp
 )

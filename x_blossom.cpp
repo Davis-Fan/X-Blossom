@@ -1,88 +1,68 @@
 #include "blossom.h"
 #include "graph.h"
 #include "stopwatch.h"
-extern int nodes;
-extern int num_of_threads;
-extern int count;
-extern std::chrono::microseconds duration_blossom;
-extern std::chrono::microseconds duration_augmenting_path;
-extern std::chrono::microseconds duration_expand;
-extern std::chrono::microseconds duration_edge;
-extern std::chrono::microseconds duration_prepare;
-extern std::chrono::microseconds duration_update;
-extern bool stop_immediately;
 
+/// \brief Compute a maximum matching on an undirected graph using X-Blossom.
+///
+/// This routine repeatedly finds augmenting paths in G and updates the
+/// matching until no augmenting path exists. On output, M encodes a
+/// maximum matching: M[v] is the vertex matched with v, or -1 if v is
+/// unmatched.
+///
+/// \param G
+///     Undirected input graph. Vertices are assumed to be labeled
+///     0, 1, ..., n-1. G is stored in CSR format (two std::vectors).
+///
+/// \param M
+///     Output matching vector. On entry, M may be empty or any size.
+///     On return, M is resized to the number of vertices in G, and
+///     M[v] contains the matched partner of v, or -1 if v is unmatched.
+///     (one std::vector)
+///
+/// \param num_of_threads
+///     Number of worker threads used by the parallel X-Blossom algorithm.
+///     Must be >= 1. The implementation divides the search for augmenting
+///     paths and the matching updates across these threads.
+///
+/// \note
+///     This function does not perform any I/O. It is intended as a
+///     library-style entry point that can be called from larger C++
+///     applications.
+void x_blossom_maximum_matching(Graph& G, std::vector<int>& M, int num_of_threads){
 
-void test_M_valid_and_size(std::vector<int>& M, bool& valid_M, int& matching_size){
-    bool is_valid = true;
-    matching_size = 0;
-
-    for(int i=0; i<M.size();i++){
-        int k = M[i];
-        if(k != -1 && M[k] != i){
-            is_valid = false;
-        }
-        if(k!=-1){
-            matching_size++;
-        }
-    }
-
-    if(is_valid){
-
-    }else{
-        valid_M = false;
-        std::cout << "The matching is NOT valid !!!" << std::endl;
-        std::cout << "valid_M = " << valid_M << std::endl;
-    }
-}
-
-
-
-void parFindMaximumMatchingNoRecursionUpdatePathTable_200(Graph& G, std::vector<int>& M, bool& valid_M, int& threshold){
-
-    bool finished = false;
     std::vector<std::vector<int>> path_collection;
     path_collection.reserve(num_of_threads);
     std::vector<std::vector<int>> path_table_vector;
+    int nodes = static_cast<int>(G.rowOffsets.size()) - 1;
     path_table_vector.resize(nodes);
     for (auto& sub_vector : path_table_vector) {
         sub_vector.reserve(100);
         sub_vector.clear();
     }
 
-
-    while(!finished){
-
-        count++;
+    while(true){
         for (auto& sub_vector : path_table_vector) {
             sub_vector.clear();
         }
 
-        parFindAugmentingPathNoRecursionUpdatePathTable_200(G,M, path_collection, path_table_vector);
-
+        parFindAugmentingPathNoRecursionUpdatePathTable(G,M, path_collection, path_table_vector, num_of_threads);
         if(path_collection.empty()){
-            finished = true;
             break;
         }
-
-        parNewMatchingVector(M, path_collection);
+        parNewMatchingVector(M, path_collection, num_of_threads);
         path_collection.clear();
-
-        int matching_size = 0;
-        test_M_valid_and_size(M, valid_M, matching_size);
-
-        if(!valid_M || matching_size/2 >= threshold){
-            break;
-        }
-
     }
 
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// \brief All followings are internal helper functions used by x_blossom_maximum_matching.
+///
+/// These functions are implementation details of the X-Blossom algorithm.
+/// They are not part of the public API
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
 std::mutex path_mutex_lock;
-void parAugmentingPath_200(const std::vector<int>& rowOffsets,
+void parAugmentingPath(const std::vector<int>& rowOffsets,
                            const std::vector<int>& columnIndices,
                            const std::vector<int>& nodes_vector,
                            int index, int num_threads, std::vector<int>& is_even, std::vector<int>& belongs,
@@ -108,8 +88,11 @@ void parAugmentingPath_200(const std::vector<int>& rowOffsets,
 
             if(is_even[w] && tree_v != tree_w && tree_v != -1 && tree_w != -1){
 
-                if(select_tree[tree_v].compare_exchange_strong(expected, 1)){
-                    if(select_tree[tree_w].compare_exchange_strong(expected, 1)){
+                int min_tree = (tree_v < tree_w) ? tree_v : tree_w;
+                int max_tree = (tree_v < tree_w) ? tree_w : tree_v;
+
+                if(select_tree[min_tree].compare_exchange_strong(expected, 1)){
+                    if(select_tree[max_tree].compare_exchange_strong(expected, 1)){
 
                         std::vector<int> path_v_vector = find_path_vector(path_table_vector, v);
                         std::vector<int> path_w_vector = find_path_vector(path_table_vector, w);
@@ -125,7 +108,7 @@ void parAugmentingPath_200(const std::vector<int>& rowOffsets,
 
                     }else{
                         int expected_to = 1;
-                        select_tree[tree_v].compare_exchange_strong(expected_to, 0);
+                        select_tree[min_tree].compare_exchange_strong(expected_to, 0);
                     }
                 } else {
                     break;
@@ -143,12 +126,8 @@ void parAugmentingPath_200(const std::vector<int>& rowOffsets,
 }
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 std::mutex expand_mutex_lock;
-void parExpand_200(const std::vector<int>& rowOffsets,
+void parExpand(const std::vector<int>& rowOffsets,
                    const std::vector<int>& columnIndices,
                    const std::vector<int>& nodes_vector,
                    int index, int num_threads, std::vector<int>& is_even, std::vector<int>& belongs,
@@ -196,10 +175,8 @@ void parExpand_200(const std::vector<int>& rowOffsets,
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 std::mutex blossom_mutex_lock;
-void parBlossom_200(const std::vector<int>& rowOffsets,
+void parBlossom(const std::vector<int>& rowOffsets,
                     const std::vector<int>& columnIndices,
                     const std::vector<int>& nodes_vector,
                     int index, int num_threads, std::vector<int>& is_even, std::vector<int>& belongs,
@@ -238,8 +215,6 @@ void parBlossom_200(const std::vector<int>& rowOffsets,
                     continue;
                 }
                 blossom_to_base[blossom[0]] = blossom[0];
-
-////////////////////////////////////////////////////////////////////////////////////////////
 
                 for(int k=blossom.size()-3; k>=0; k=k-2){
                     int current = blossom[k];
@@ -281,8 +256,6 @@ void parBlossom_200(const std::vector<int>& rowOffsets,
                     }
                 }
 
-////////////////////////////////////////////////////////////////////////////////////////////
-
                 for(int k=2; k<blossom.size()-1; k=k+2){
                     int current = blossom[k];
 
@@ -323,7 +296,6 @@ void parBlossom_200(const std::vector<int>& rowOffsets,
                     }
                 }
 
-////////////////////////////////////////////////////////////////////////////////////////////
             }
         }
     }
@@ -335,20 +307,14 @@ void parBlossom_200(const std::vector<int>& rowOffsets,
 }
 
 
+void parFindAugmentingPathNoRecursionUpdatePathTable(Graph& G, std::vector<int>& M, std::vector<std::vector<int>>& path_collection, std::vector<std::vector<int>>& path_table_vector, int num_of_threads){
 
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void parFindAugmentingPathNoRecursionUpdatePathTable_200(Graph& G, std::vector<int>& M, std::vector<std::vector<int>>& path_collection, std::vector<std::vector<int>>& path_table_vector){
-
-//    auto start_prepare = std::chrono::high_resolution_clock::now();
-
-    bool check_all = false;
 
     // Find all exposed nodes
+    int nodes = static_cast<int>(G.rowOffsets.size()) - 1;
     std::vector<int> exposed;
     exposed.reserve(nodes);
-    parExposedNode(exposed,M);
+    parExposedNode(exposed,M, num_of_threads);
 
     std::vector<int> is_even(nodes,0);                                  // Whether a node is even or not
     std::vector<int> belongs(nodes,-1);                                 // Which tree the node belongs to
@@ -360,8 +326,6 @@ void parFindAugmentingPathNoRecursionUpdatePathTable_200(Graph& G, std::vector<i
     parInitializeAtomicPathTable(select_tree, select_match, select_blossom, path_table_vector, nodes, num_of_threads);
     parInitializeExposed(exposed, is_even, belongs, num_of_threads);
 
-////////////////////////////////////////////////////
-
     std::vector<int> nodes_vector;
     nodes_vector.reserve(nodes);
     nodes_vector = exposed;
@@ -372,25 +336,16 @@ void parFindAugmentingPathNoRecursionUpdatePathTable_200(Graph& G, std::vector<i
     std::vector<int> vector_2;
     vector_2.reserve(nodes);
 
-////////////////////////////////////////////////////
-
-//    auto end_prepare = std::chrono::high_resolution_clock::now();
-//    duration_prepare = std::chrono::duration_cast<std::chrono::microseconds>(end_prepare-start_prepare)+duration_prepare;
-
-////////////////////////////////////////////////////
-
     std::vector<std::thread> threads;
     threads.reserve(num_of_threads);
-
-////////////////////////////////////////////////////
     std::vector<int> blossom_to_base(nodes,-1);
 
 
-    while (!check_all){
+    while (true){
 
         auto start_augmenting_path = std::chrono::high_resolution_clock::now();
         for(int begin = 0; begin < num_of_threads; begin++){
-            threads.emplace_back(parAugmentingPath_200, std::ref(G.rowOffsets), std::ref(G.columnIndices), std::ref(nodes_vector), begin, num_of_threads, std::ref(is_even),
+            threads.emplace_back(parAugmentingPath, std::ref(G.rowOffsets), std::ref(G.columnIndices), std::ref(nodes_vector), begin, num_of_threads, std::ref(is_even),
                                  std::ref(belongs), std::ref(path_table_vector), std::ref(select_tree), std::ref(path_collection));
         }
 
@@ -407,11 +362,9 @@ void parFindAugmentingPathNoRecursionUpdatePathTable_200(Graph& G, std::vector<i
         threads.clear();
         vector_1.clear();
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
         auto start_expand = std::chrono::high_resolution_clock::now();
         for(int begin = 0; begin < num_of_threads; begin++){
-            threads.emplace_back(parExpand_200, std::ref(G.rowOffsets), std::ref(G.columnIndices), std::ref(nodes_vector), begin, num_of_threads, std::ref(is_even), std::ref(belongs),
+            threads.emplace_back(parExpand, std::ref(G.rowOffsets), std::ref(G.columnIndices), std::ref(nodes_vector), begin, num_of_threads, std::ref(is_even), std::ref(belongs),
                                  std::ref(path_table_vector), std::ref(vector_1), std::ref(select_match), std::ref(M));
         }
 
@@ -425,33 +378,25 @@ void parFindAugmentingPathNoRecursionUpdatePathTable_200(Graph& G, std::vector<i
         copy_vector_to_vector(nodes_vector, vector_1, vector_2);
         vector_2.clear();
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
         auto start_blossom = std::chrono::high_resolution_clock::now();
         for(int begin = 0; begin < num_of_threads; begin++){
-            threads.emplace_back(parBlossom_200, std::ref(G.rowOffsets), std::ref(G.columnIndices), std::ref(nodes_vector), begin, num_of_threads, std::ref(is_even), std::ref(belongs),
+            threads.emplace_back(parBlossom, std::ref(G.rowOffsets), std::ref(G.columnIndices), std::ref(nodes_vector), begin, num_of_threads, std::ref(is_even), std::ref(belongs),
                                  std::ref(path_table_vector), std::ref(vector_2), std::ref(select_blossom), std::ref(blossom_to_base), std::ref(M));
         }
 
         for (auto& thread : threads) {
             thread.join();
         }
-
         auto end_blossom = std::chrono::high_resolution_clock::now();
         duration_blossom = std::chrono::duration_cast<std::chrono::microseconds>(end_blossom - start_blossom) + duration_blossom;
-
 
         threads.clear();
         copy_vector_to_vector(nodes_vector, vector_1, vector_2);
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
         if(nodes_vector.empty()){
-            check_all = true;
             break;
         }
 
     }
 
-    return;
 }

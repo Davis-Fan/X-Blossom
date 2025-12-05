@@ -76,8 +76,74 @@ $ make
 4. Run the program. We need to input two paths that contain the information of the graph. For example, if we want to test the StackOverflow graph, please use:
 
 ```
-$ ./Blossom ../Example_Dataset/Example_Realworld_Datasets/StackOverflow/stackOverflow_rowOffsets.txt ../Example_Dataset/Example_Realworld_Datasets/StackOverflow/stackOverflow_columnIndices.txt 1 8
+$ ./Blossom ../Example_Dataset/Example_Realworld_Datasets/StackOverflow/stackOverflow_rowOffsets.txt ../Example_Dataset/Example_Realworld_Datasets/StackOverflow/stackOverflow_columnIndices.txt 8
 ```
 
 The program will execute the *same* test for 20 runs. The third parameter is 1, indicating it is a parallel program. The forth parameter is 8, which is the number of threads used in the parallel program.
 
+---
+
+## C++ API
+
+### x_blossom_maximum_matching
+
+```cpp
+void x_blossom_maximum_matching(Graph& G,
+                                std::vector<int>& M,
+                                int num_of_threads);
+```
+
+#### Description
+
+Computes a maximum matching on an undirected graph using **X-Blossom**.
+
+The routine repeatedly finds augmenting paths in `G` and updates the matching until no augmenting path exists. On return, `M` encodes a maximum matching: `M[v]` is the vertex matched with `v`, or `-1` if  `v` is unmatched.
+
+#### Parameters
+
+- `Graph& G`
+  Undirected input graph. Vertices are assumed to be labeled  `0, 1, ..., n-1`.
+   `G` is stored in CSR format as two `std::vector<int>`:
+
+  - `rowOffsets` (size `n + 1`)
+
+  - `columnIndices`
+
+    For each vertex `u`, its neighbors are stored in `columnIndices[rowOffsets[u] .. rowOffsets[u+1])`.
+
+- `std::vector<int>& M`
+   Output matching vector (one `std::vector<int>`).
+
+  - On entry, `M` may be empty or any size.
+  - On return, `M` is resized to the number of vertices in `G`.
+  - `M[v]` contains the matched partner of `v`, or `-1` if `v` is unmatched.
+
+- `int num_of_threads`
+  Number of worker threads used by the parallel X-Blossom algorithm.
+
+  - Must be ≥ 1.
+  - The implementation parallelizes the search for augmenting paths and the matching updates across these threads.
+
+#### Notes
+
+- This function does **not** perform any I/O.
+- It is intended as a **library-style entry point** that can be called from larger C++ applications.
+
+#### Minimal Example
+
+```
+int main() {
+    // Construct Graph G from CSR (user code)
+    std::vector<int> rowOffsets    = {0, 2, 4};
+    std::vector<int> columnIndices = {1, 2, 0, 2};
+    Graph G(rowOffsets, columnIndices);
+
+    std::vector<int> M;
+    int num_threads = 8;
+
+    x_blossom_maximum_matching(G, M, num_threads);
+
+    // M[v] is the mate of v, or -1 if unmatched
+    return 0;
+}
+```

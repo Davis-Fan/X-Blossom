@@ -1,19 +1,14 @@
 #include "blossom.h"
 #include "graph.h"
 #include "stopwatch.h"
-int nodes;
-int num_of_threads;
-int count;
 std::chrono::microseconds duration_blossom;
 std::chrono::microseconds duration_augmenting_path;
 std::chrono::microseconds duration_expand;
-std::chrono::microseconds duration_edge;
 std::chrono::microseconds duration_prepare;
-std::chrono::microseconds duration_update;
 std::chrono::microseconds duration_total(0);
 
 
-
+/// \brief Test if a maximum matching valid or not.
 void testMatching(std::vector<int>& M){
     bool is_valid = true;
     for(int i=0; i<M.size();i++){
@@ -22,7 +17,6 @@ void testMatching(std::vector<int>& M){
             is_valid = false;
         }
     }
-
     std::set<std::pair<int, int>> M_set;
     for(int i=0; i<M.size(); i++){
         if(M[i] != -1){
@@ -56,11 +50,8 @@ void readFileIntoVector(const std::string& filename, std::vector<int>& vec) {
 
 int main(int argc, char* argv[]) {
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
     if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <rowOffsets file path> <columnIndices file path> 1 <number of threads>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <rowOffsets file path> <columnIndices file path> <number of threads>" << std::endl;
         return 1;
     }
 
@@ -71,37 +62,21 @@ int main(int argc, char* argv[]) {
     readFileIntoVector(rowOffsetsFilePath, rowOffsets);
     readFileIntoVector(columnIndicesFilePath, columnIndices);
 
-    Graph G(rowOffsets, columnIndices);
-    nodes = G.num_of_nodes;
-    int edge_count = G.columnIndices.size();
+
+    Graph G(rowOffsets, columnIndices); // Load rowOffset and columnIndices to build a graph
+    int nodes = static_cast<int>(G.rowOffsets.size()) - 1;
+    int edge_count = static_cast<int>(G.columnIndices.size());
     std::cout << "The graph has " << edge_count/2 << " edges " << std::endl;
-    std::vector<int> M(nodes,-1);
+    std::vector<int> M(nodes,-1);    // Build a vector to store matching
 
-    int choice = std::stoi(argv[3]);
-    num_of_threads = std::stoi(argv[4]);
-
-    int threshold = INT_MAX;
-    if (argc > 5) {
-        int input_threshold = std::stoi(argv[5]);
-        if (input_threshold != 0) {
-            threshold = input_threshold;
-        }
+    int num_of_threads = 1;
+    if(argc == 4){
+        num_of_threads = std::stoi(argv[3]);
     }
 
-
-    switch (choice) {
-        case 1:
-            std::cout << "Use parallel non-recursion X-Blossom to compute the maximum matching" << std::endl;
-            std::cout << std::endl;
-            testParBlossom_200(G, M, threshold);
-            break;
-
-        default:
-            std::cerr << "Invalid choice for function: " << choice << std::endl;
-            return 1;
-    }
-
-    std::cout << std::endl;
+    std::cout << "Test X-Blossom" << std::endl;
+    test_x_blossom_maximum_matching(G, M, num_of_threads);
+    testMatching(M);
 
     return 0;
 }

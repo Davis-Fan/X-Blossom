@@ -1,7 +1,5 @@
 #include "blossom.h"
 #include "graph.h"
-extern int num_of_threads;
-extern int nodes;
 
 
 void parCreateNewMatchingVector(std::vector<int>& M, std::vector<std::vector<int>>& path_collection, int index, int num_threads){
@@ -19,7 +17,7 @@ void parCreateNewMatchingVector(std::vector<int>& M, std::vector<std::vector<int
 }
 
 
-void parNewMatchingVector(std::vector<int>& M, std::vector<std::vector<int>>& path_collection){
+void parNewMatchingVector(std::vector<int>& M, std::vector<std::vector<int>>& path_collection, int num_of_threads){
     std::vector<std::thread> threads;
     threads.reserve(num_of_threads);
     for(int begin=0; begin < num_of_threads; begin++){
@@ -48,7 +46,7 @@ void parFindExposedNode(std::vector<int>& exposed, std::vector<int>& M, int star
 }
 
 
-void parExposedNode(std::vector<int>& exposed, std::vector<int>& M) {
+void parExposedNode(std::vector<int>& exposed, std::vector<int>& M, int num_of_threads) {
     std::vector<std::thread> threads;
     threads.reserve(num_of_threads);
 
@@ -59,40 +57,6 @@ void parExposedNode(std::vector<int>& exposed, std::vector<int>& M) {
         int start = t * chunk_size;
         int end = std::min(start + chunk_size, node_size);
         threads.emplace_back(parFindExposedNode, std::ref(exposed), std::ref(M), start, end);
-    }
-
-    for (auto& thread : threads) {
-        thread.join();
-    }
-}
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-void initialize_range(std::vector<std::atomic<int>>& vec1,
-                      std::vector<std::atomic<int>>& vec2,
-                      std::vector<std::atomic<int>>& vec3,
-                      int start, int end) {
-    for (int i = start; i < end; ++i) {
-        vec1[i] = 0;
-        vec2[i] = 0;
-        vec3[i] = 0;
-    }
-}
-
-
-void parInitializeAtomic(std::vector<std::atomic<int>>& select_tree,
-                         std::vector<std::atomic<int>>& select_match,
-                         std::vector<std::atomic<int>>& select_blossom,
-                         int nodes, int num_threads) {
-    std::vector<std::thread> threads;
-    int chunk_size = (nodes + num_threads - 1) / num_threads;
-
-    for (int t = 0; t < num_threads; ++t) {
-        int start = t * chunk_size;
-        int end = std::min(start + chunk_size, nodes);
-        threads.emplace_back(initialize_range, std::ref(select_tree), std::ref(select_match), std::ref(select_blossom), start, end);
     }
 
     for (auto& thread : threads) {
@@ -163,62 +127,6 @@ void parInitializeExposed(const std::vector<int>& exposed, std::vector<int>& is_
 }
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-int count_shared_elements_2(const std::vector<std::vector<int>>& path_collection) {
-    std::unordered_map<int, int> element_counts;
-    for (const auto& path : path_collection) {
-        for (int node : path) {
-            element_counts[node]++;
-        }
-    }
-
-    int shared_count = 0;
-    for (const auto& entry : element_counts) {
-        if (entry.second > 1) {
-            shared_count++;
-        }
-    }
-
-    return shared_count;
-}
-
-void print_shared_paths(const std::vector<std::vector<int>>& paths) {
-    std::unordered_map<int, int> element_to_path_index;
-
-    for (size_t i = 0; i < paths.size(); ++i) {
-        const auto& path = paths[i];
-        for (int node : path) {
-            if (element_to_path_index.find(node) != element_to_path_index.end()) {
-                // Element already seen, print both paths
-                int first_path_index = element_to_path_index[node];
-
-                std::cout << "Shared element: " << node << "\n";
-                std::cout << "First path: ";
-                for (int val : paths[first_path_index]) {
-                    std::cout << val << " ";
-                }
-                std::cout << "\n";
-
-                std::cout << "Second path: ";
-                for (int val : path) {
-                    std::cout << val << " ";
-                }
-                std::cout << "\n";
-
-                return;  // Stop after finding the first shared element
-            } else {
-                // Record the path index where this element is first seen
-                element_to_path_index[node] = i;
-            }
-        }
-    }
-
-    std::cout << "No shared elements found between any two paths.\n";
-}
-
-
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -254,7 +162,7 @@ std::vector<int> find_path_vector_blossom(const std::vector<std::vector<int>>& p
         path.insert(path.end(), path_table[new_v].begin(), path_table[new_v].end());
         new_v = path.back();
         test++;
-        if(test >= nodes){
+        if(test >= path_table.size()){
             std::cout << test << std::endl;
             std::cout << "infinite loop New V = " <<new_v << std::endl;
             printNodesVector(path_table[new_v]);
@@ -265,29 +173,6 @@ std::vector<int> find_path_vector_blossom(const std::vector<std::vector<int>>& p
     return path;
 }
 
-
-void print_path_vector_blossom(const std::vector<std::vector<int>>& path_table, int v, bool& valid) {
-    int test = 0;
-    if (path_table[v].empty()) {
-        std::cout << "Nothing in Path-Table" << std::endl;
-    }
-
-    int new_v = v;
-    while (!path_table[new_v].empty()) {
-        std::cout << "new_v = " << new_v << "-";
-        std::cout << std::endl;
-        new_v = path_table[new_v].back();
-        test++;
-        if(test >= nodes){
-            valid = false;
-            std::cout << test << std::endl;
-            std::cout << "Blossom bool valid = " <<valid << std::endl;
-            std::cout << "infinite loop New V = " <<new_v << std::endl;
-            printNodesVector(path_table[new_v]);
-            break;
-        }
-    }
-}
 
 
 std::vector<int> find_path_vector_blossom_w(const std::vector<std::vector<int>>& path_table, int v, std::vector<int>& belongs, bool& consistent_flag) {
@@ -320,33 +205,56 @@ std::vector<int> find_path_vector_blossom_w(const std::vector<std::vector<int>>&
     return path;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> find_path_vector_on_tree(const std::vector<std::vector<int>>& path_table, int v, Graph& v_tree, int root_of_v) {
+void copy_vector_to_vector(std::vector<int>& nodes_vector, const std::vector<int>& vector_1, const std::vector<int>& vector_2) {
+    nodes_vector.clear();
+    nodes_vector.insert(nodes_vector.end(), vector_1.begin(), vector_1.end());
+    nodes_vector.insert(nodes_vector.end(), vector_2.begin(), vector_2.end());
+}
 
-    std::vector<int> path;
-    path.push_back(v);
 
-    if(path.back() == root_of_v){
-        return path;
+void find_blossom_vector_debug(std::vector<int>& path_v, std::vector<int>& path_w, std::vector<int>& blossom, std::vector<std::vector<int>>& path_table_vector, bool& valid_flag){
+
+    int s = path_v.size() - 1;
+    int t = path_w.size() - 1;
+
+    if(path_v.back() != path_w.back()){
+        valid_flag = false;
+        std::cout << "problem+++" << std::endl;
+        std::cout << "v = " << path_v.front() << std::endl;
+        std::cout << "w = " << path_w.front() << std::endl;
+        std::cout << "+++++++++++++++++++++++++++++++++++" << std::endl;
+        printNodesVector(path_v);
+        printNodesVector(path_w);
+        std::cout << "+++++++++++++++++++++++++++++++++++" << std::endl;
+        std::cout << "-----------------------------------" << std::endl;
+        printNodesVector(path_table_vector[path_v.front()]);
+        printNodesVector(path_table_vector[path_w.front()]);
+        std::cout << "-----------------------------------" << std::endl;
+        return;
     }
 
-    int new_v = v;
-    while (!path_table[new_v].empty()) {
-        path.insert(path.end(), path_table[new_v].begin(), path_table[new_v].end());
-        new_v = path.back();
-    }
-
-    if(new_v != root_of_v){
-        auto path_v = v_tree.findShortestPath(new_v, root_of_v);
-        for (auto it = path_v.begin(); it != path_v.end(); ++it) {
-            if (*it == new_v) {
-                continue;
-            }
-            path.push_back(*it);
+    for(; s>=0 && t>=0; s--, t--){
+        if(path_v[s] != path_w[t]){
+            break;
         }
     }
 
-    return path;
+    for(int i = s+1; i>=0; i--){
+        blossom.push_back(path_v[i]);
+    }
 
+    for(int j = 0; j<=t+1; j++){
+        blossom.push_back(path_w[j]);
+    }
+}
+
+void printNodesVector(const std::vector<int>& nodes_vector) {
+    std::cout << "////////////////////////" << std::endl;
+    for (const int& node : nodes_vector) {
+        std::cout << node << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "////////////////////////" << std::endl;
+    std::cout << std::endl;
 }
